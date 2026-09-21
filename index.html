@@ -4,25 +4,103 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>¡Feliz Primavera!</title>
-    <style>
-        html, body { overflow: hidden; padding: 0; margin: 0; background: #0f0c29; }
+ <style>
+        html, body { overflow: hidden; padding: 0; margin: 0; background: #050508; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
         .container { 
             position: relative; 
             overflow: hidden; 
-            background: linear-gradient(120deg, #f7797d, #FBD786, #C6FFDD); 
+            background: linear-gradient(135deg, #0f0c1b, #2c163a, #110e19); 
             height: 100vh; 
         }
-        canvas { display: block; width: 100%; cursor: grab; }
-        .lil-gui { 
-            --width: 450px; --name-width: 60%; max-width: 90%; 
-            --widget-height: 20px; font-size: 15px; --input-font-size: 15px; 
-            --padding: 10px; --spacing: 10px; --slider-knob-width: 5px; 
-            --background-color: rgba(5, 0, 15, .8); --widget-color: rgba(255, 255, 255, .3); 
-            --focus-color: rgba(255, 255, 255, .4); --hover-color: rgba(255, 255, 255, .5); 
-            --font-family: monospace; 
+        #petals-canvas {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            pointer-events: none; z-index: 1;
+        }
+        canvas#laptop { display: block; width: 100%; cursor: grab; position: relative; z-index: 2; }
+        
+        /* --- NUEVO PANEL DE CONTROL FLOTANTE INFERIOR --- */
+        .custom-controls {
+            position: fixed;
+            bottom: 30px;
+            left: 50%;
+            transform: translateX(-50%);
+            display: flex;
+            gap: 20px;
+            background: rgba(20, 15, 30, 0.75);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            border: 1px solid rgba(255, 183, 197, 0.25);
+            padding: 14px 28px;
+            border-radius: 50px;
+            box-shadow: 0 15px 35px rgba(0, 0, 0, 0.6);
+            z-index: 10;
+            align-items: center;
+        }
+
+        .control-group {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 4px;
+        }
+
+        .control-group label {
+            color: #ffb7c5;
+            font-size: 11px;
+            letter-spacing: 0.8px;
+            text-transform: uppercase;
+            font-weight: 600;
+        }
+
+        .custom-controls input[type="range"] {
+            -webkit-appearance: none;
+            width: 130px;
+            height: 6px;
+            background: rgba(255, 255, 255, 0.15);
+            border-radius: 10px;
+            outline: none;
+        }
+
+        .custom-controls input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 14px;
+            height: 14px;
+            border-radius: 50%;
+            background: #ffffff;
+            cursor: pointer;
+            box-shadow: 0 0 10px rgba(255, 117, 143, 0.9);
+            transition: transform 0.2s;
+        }
+
+        .custom-controls input[type="range"]::-webkit-slider-thumb:hover {
+            transform: scale(1.3);
+        }
+
+        .custom-btn {
+            background: linear-gradient(135deg, #ff758f, #ffb7c5);
+            border: none;
+            color: #1a1025;
+            padding: 8px 16px;
+            border-radius: 20px;
+            font-weight: 700;
+            font-size: 12px;
+            cursor: pointer;
+            box-shadow: 0 4px 15px rgba(255, 117, 143, 0.4);
+            transition: all 0.2s ease;
+        }
+
+        .custom-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(255, 117, 143, 0.6);
+        }
+
+        .custom-btn.active {
+            background: rgba(255, 255, 255, 0.2);
+            color: #ffb7c5;
+            border: 1px solid #ffb7c5;
         }
     </style>
-    <!-- Importamos GSAP para las timelines -->
+    <!-- Importamos GSAP -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/gsap.min.js"></script>
     <script async src="https://unpkg.com/es-module-shims@1.6.3/dist/es-module-shims.js"></script>
     <script type="importmap">
@@ -35,9 +113,93 @@
     </script>
 </head>
 <body>
+    <!-- Pantalla de bienvenida para destrabar el audio -->
+    <div id="welcome-screen" style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(5, 5, 8, 0.9); z-index: 100; display: flex; flex-direction: column; justify-content: center; align-items: center; transition: opacity 0.5s ease;">
+        <h2 style="color: #ffb7c5; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; margin-bottom: 20px; font-weight: 500; letter-spacing: 1px;">🌸 De memi pa memi 🌸</h2>
+        <button id="start-btn" style="background: linear-gradient(135deg, #ff758f, #ffb7c5); border: none; color: #1a1025; padding: 12px 30px; border-radius: 25px; font-weight: 700; font-size: 15px; cursor: pointer; box-shadow: 0 4px 20px rgba(255, 117, 143, 0.6);">Click</button>
+    </div>
+     <!-- Elemento de audio oculto -->
+    <audio id="bg-music" src="Yellow.mp3" preload="auto" loop></audio>
     <div class="container">
+        <!-- Canvas de pétalos / flores cayendo con viento -->
+        <canvas id="petals-canvas"></canvas>
         <canvas id="laptop"></canvas>
     </div>
+
+<script>
+        // --- SISTEMA DE LLUVIA CON TUS FOTOS PNG DE FLORES ---
+        const petalsCanvas = document.getElementById("petals-canvas");
+        const pCtx = petalsCanvas.getContext("2d");
+
+        function resizePetalsCanvas() {
+            petalsCanvas.width = window.innerWidth;
+            petalsCanvas.height = window.innerHeight;
+        }
+        window.addEventListener("resize", resizePetalsCanvas);
+        resizePetalsCanvas();
+
+        // Poné acá los nombres de tus archivos PNG de flores reales
+        const flowerImageSources = ["flor 1.png", "flor 2.png", "flor 3.png"]; 
+        const loadedFlowerImages = [];
+        let imagesLoadedCount = 0;
+
+        flowerImageSources.forEach(src => {
+            const img = new Image();
+            img.src = src;
+            img.onload = () => {
+                imagesLoadedCount++;
+            };
+            loadedFlowerImages.push(img);
+        });
+
+        const roses = [];
+        const numRoses = 14; // Cantidad sutil para que no moleste
+
+        for (let i = 0; i < numRoses; i++) {
+            roses.push({
+                x: Math.random() * petalsCanvas.width,
+                y: Math.random() * petalsCanvas.height - petalsCanvas.height,
+                size: Math.random() * 25 + 30, // Tamaño de las flores flotantes
+                speedY: Math.random() * 0.6 + 0.4, 
+                speedX: Math.random() * 1.2 + 0.5, 
+                angle: Math.random() * Math.PI * 2,
+                spin: Math.random() * 0.01 - 0.005,
+                opacity: Math.random() * 0.5 + 0.5,
+                imgIndex: Math.floor(Math.random() * flowerImageSources.length)
+            });
+        }
+
+        function drawRoses() {
+            pCtx.clearRect(0, 0, petalsCanvas.width, petalsCanvas.height);
+
+            roses.forEach(r => {
+                r.y += r.speedY;
+                r.x += r.speedX + Math.sin(r.angle) * 0.8; // Efecto viento
+                r.angle += r.spin;
+
+                if (r.y > petalsCanvas.height + 50) {
+                    r.y = -50;
+                    r.x = Math.random() * petalsCanvas.width;
+                }
+
+                pCtx.save();
+                pCtx.translate(r.x, r.y);
+                pCtx.rotate(r.angle);
+                pCtx.globalAlpha = r.opacity;
+
+                const imgToDraw = loadedFlowerImages[r.imgIndex];
+                if (imgToDraw && imgToDraw.complete && imgToDraw.naturalWidth !== 0) {
+                    // Dibuja tu imagen PNG centrada
+                    pCtx.drawImage(imgToDraw, -r.size / 2, -r.size / 2, r.size, r.size);
+                }
+
+                pCtx.restore();
+            });
+
+            requestAnimationFrame(drawRoses);
+        }
+        drawRoses();
+    </script>
 
     <script type="module">
     import * as THREE from "three";
@@ -62,7 +224,6 @@
     createMaterials();
 
     const modelLoader = new GLTFLoader();
-    // Cargamos el modelo base
     modelLoader.load(
         "https://ksenia-k.com/models/mac-noUv.glb",
         glb => {
@@ -119,75 +280,113 @@
     function createMaterials() {
         const canvasTex = document.createElement("canvas");
         canvasTex.width = 1024;
-        canvasTex.height = 3000; 
+        canvasTex.height = 4500; 
         const ctx = canvasTex.getContext("2d");
         
-        // Gradiente de fondo primaveral
-        const grd = ctx.createLinearGradient(0, 0, 0, canvasTex.height);
-        grd.addColorStop(0, "#e0c3fc");
-        grd.addColorStop(0.5, "#8ec5fc");
-        grd.addColorStop(1, "#c2e59c");
-        ctx.fillStyle = grd;
-        ctx.fillRect(0, 0, canvasTex.width, canvasTex.height);
-        
-        ctx.fillStyle = "#2b2b2b";
-        ctx.textAlign = "center";
-        
-        function wrapText(context, text, x, y, maxWidth, lineHeight) {
-            const words = text.split(' ');
-            let line = '';
-            for(let n = 0; n < words.length; n++) {
-                let testLine = line + words[n] + ' ';
-                let metrics = context.measureText(testLine);
-                let testWidth = metrics.width;
-                if (testWidth > maxWidth && n > 0) {
-                    context.fillText(line, x, y);
-                    line = words[n] + ' ';
-                    y += lineHeight;
-                } else {
-                    line = testLine;
-                }
-            }
-            context.fillText(line, x, y);
-        }
-
-        // Título
-        ctx.font = "bold 50px monospace";
-        ctx.fillText("🌸 ¡Feliz Primavera mi pinchecha! 🌸", canvasTex.width / 2, 300);
-        
-        // Párrafo
-        ctx.font = "45px monospace";
-        wrapText(
-            ctx, 
-            "Estamos lejos pero no queria que pasara el dia sin darte unas flores amarillas, mas alla de que esten en foto pero la intencion es la que cuenta, TE AMO MI GEI ", 
-            canvasTex.width / 2, 
-            480, 
-            850, 
-            65 
-        );
-        
-        // 🚀 CARGAR TU IMAGEN LOCAL
-        const img = new Image();
-        img.src = "memi.png"; // <-- Cambiá esto por el nombre exacto de tu archivo (ej: "foto.png", "imagen.jpg")
-        
-        img.onload = () => {
-            const imgWidth = 400; // Ancho que tendrá la foto en pantalla
-            const imgHeight = (img.height / img.width) * imgWidth;
-            const imgX = (canvasTex.width - imgWidth) / 2;
-            const imgY = 1000; // Posición vertical donde se dibujará la foto
-            
-            ctx.drawImage(img, imgX, imgY, imgWidth, imgHeight);
-            
-            // Actualizamos la textura en Three.js una vez cargada la imagen
-            screenImageTexture.needsUpdate = true;
-        };
-        
-
-        // Convertimos el canvas en textura de Three.js
         screenImageTexture = new THREE.CanvasTexture(canvasTex);
         screenImageTexture.flipY = false;
         screenImageTexture.wrapS = THREE.RepeatWrapping;
         screenImageTexture.repeat.y = (canvasTex.width / canvasTex.height) / (screenSize[0] / screenSize[1]);
+
+        function drawCanvasContent() {
+            const bgImg = new Image();
+            bgImg.src = "justin.png"; 
+            
+            bgImg.onload = () => {
+                const hRatio = canvasTex.width / bgImg.width;
+                const vRatio = canvasTex.height / bgImg.height;
+                const ratio = Math.max(hRatio, vRatio);
+                
+                const centerShiftX = (canvasTex.width - bgImg.width * ratio) / 2;
+                const centerShiftY = (canvasTex.height - bgImg.height * ratio) / 2;
+                
+                ctx.save();
+                ctx.clearRect(0, 0, canvasTex.width, canvasTex.height);
+                ctx.drawImage(bgImg, 0, 0, bgImg.width, bgImg.height, centerShiftX, centerShiftY, bgImg.width * ratio, bgImg.height * ratio);
+                
+                // Velo oscuro para contraste
+                ctx.fillStyle = "rgba(0, 0, 0, 0.35)";
+                ctx.fillRect(0, 0, canvasTex.width, canvasTex.height);
+                ctx.restore();
+
+                renderTextAndElements();
+                screenImageTexture.needsUpdate = true;
+            };
+
+            bgImg.onerror = () => {
+                ctx.fillStyle = "#1a1a1a";
+                ctx.fillRect(0, 0, canvasTex.width, canvasTex.height);
+                renderTextAndElements();
+                screenImageTexture.needsUpdate = true;
+            };
+        }
+
+        function renderTextAndElements() {
+            ctx.textAlign = "center";
+            
+            function wrapText(context, text, x, y, maxWidth, lineHeight) {
+                const words = text.split(' ');
+                let line = '';
+                for(let n = 0; n < words.length; n++) {
+                    let testLine = line + words[n] + ' ';
+                    let metrics = context.measureText(testLine);
+                    let testWidth = metrics.width;
+                    if (testWidth > maxWidth && n > 0) {
+                        context.fillText(line, x, y);
+                        line = words[n] + ' ';
+                        y += lineHeight;
+                    } else {
+                        line = testLine;
+                    }
+                }
+                context.fillText(line, x, y);
+            }
+
+            // TÍTULO
+            ctx.shadowColor = "rgba(0, 0, 0, 0.8)";
+            ctx.shadowBlur = 15;
+            ctx.fillStyle = "#ffffff";
+            ctx.font = "bold 52px sans-serif";
+            ctx.fillText("🌸 ¡Feliz Primavera mi pinchecha! 🌸", canvasTex.width / 2, 300);
+            
+            // PÁRRAFO
+            ctx.font = "50px Time new Roman";
+            wrapText(
+                ctx, 
+                "Hola memi pasaba a desearte un lindo dia, la verdad queria mandartelo anoche pero la onda era hoy jaja, yo se que estamos lejos pero no quería que pasara el día sin darte unas flores amarillas, que más allá de que no sean fisicas porque se me complica dartelas al menos las tenes de recuerdo aqui y podes verlas para siempre y no se marchitan 🥰 son mis primeras flores que doy a alguien, no es de la forma que me gustaria pero peor es nada ¿no?. Me llamo la MONA y me dijo que te las queria dar ella asi que yo no le dije que no ajjaja, asi que nada que sepas que te amo mucho aunque me hagas enojar, no te das una idea de lo que me costo hacer esto para que lo puedas ver, literalmente estuve toda la tarde🥴, se que puedo mejorar pero todo a su tiempo. TE AMO MI GEI😍💖", 
+                canvasTex.width / 2, 
+                480, 
+                850, 
+                60 
+            );
+
+            // FOTO LOCAL ("memi.png")
+            const img = new Image();
+            img.src = "flores.png"; 
+            
+            img.onload = () => {
+                const imgWidth = 420; 
+                const imgHeight = (img.height / img.width) * imgWidth;
+              const imgX = (canvasTex.width - imgWidth) / 2;
+                const imgY = 1690; 
+                
+                ctx.save();
+                ctx.shadowColor = "rgba(0, 0, 0, 0.6)";
+                ctx.shadowBlur = 30;
+                ctx.shadowOffsetX = 0;
+                ctx.shadowOffsetY = 10;
+                
+                ctx.fillStyle = "#ffffff";
+                ctx.fillRect(imgX - 10, imgY - 10, imgWidth + 20, imgHeight + 20);
+                
+                ctx.drawImage(img, imgX, imgY, imgWidth, imgHeight);
+                ctx.restore();
+                
+                screenImageTexture.needsUpdate = true;
+            };
+        }
+
+        drawCanvasContent();
 
         screenCameraTexture = new THREE.VideoTexture(videoEl);
         screenCameraTexture.flipY = false;
@@ -202,7 +401,7 @@
         const textLoader = new THREE.TextureLoader();
         const keyboardTexture = textLoader.load("https://ksenia-k.com/img/threejs/keyboard-overlay.png");
         keyboardMaterial = new THREE.MeshBasicMaterial({
-            color: 0xfffffff,
+            color: 0xffffff,
             alphaMap: keyboardTexture,
             transparent: true,
         });
@@ -267,78 +466,113 @@
         bottomGroup.add(keyboardKeys);
     }
 
-    function createTimelines() {
+   function createTimelines() {
+        // Movimiento flotante sutil desactivado al inicio para que esté quieta
         floatingTl = gsap.timeline({ repeat: -1 })
             .to([lidGroup.position, bottomGroup.position], { duration: 1.5, y: "+=1", ease: "power1.inOut" }, 0)
             .to([lidGroup.position, bottomGroup.position], { duration: 1.5, y: "-=1", ease: "power1.inOut" })
             .timeScale(0);
 
+        // La pantalla empieza apagada por completo
         screenOnTl = gsap.timeline({ paused: true })
             .to(screenMaterial, { duration: .1, opacity: .96 }, 0)
             .to(screenLight, { duration: .1, intensity: 1.5 }, 0);
 
+        // Timeline para abrir la tapa de la laptop
         laptopOpeningTl = gsap.timeline({
             paused: true,
             onUpdate: () => { controlParams.openingProgress = laptopOpeningTl.progress(); openingControl.updateDisplay(); }
         })
             .from(lidGroup.position, { duration: .75, z: "+=.5" }, 0)
-            .fromTo(lidGroup.rotation, { duration: 1, x: .5 * Math.PI }, { x: -.2 * Math.PI }, 0)
+            // Empieza cerrada (en ángulo 0 o 0.5 * Math.PI) y se abre al mover la barra
+            .fromTo(lidGroup.rotation, { duration: 1, x: 0.5 * Math.PI }, { x: -.2 * Math.PI }, 0)
             .to(screenOnTl, { duration: .06, progress: 1 }, .05);
 
         cameraOnTl = gsap.timeline({ paused: true, reversed: true })
             .to(cameraMaterial.color, { duration: .01, r: 0, g: 255, b: 0 }, 0);
 
+        // Timeline para scrollear el mensaje con el slider
         textureScrollTl = gsap.timeline({
             paused: true,
-            onUpdate: () => { controlParams.contentScrollProgress = textureScrollTl.progress(); contentScrollControl.updateDisplay(); }
-        })
-            .to(screenImageTexture.offset, { duration: 2, y: .35, ease: "power1.inOut" });
-
-        laptopAppearTl = gsap.timeline({ paused: true })
-            .fromTo(macGroup.rotation, { x: .5 * Math.PI, y: .2 * Math.PI }, { duration: 2, x: .05 * Math.PI, y: -.1 * Math.PI }, 0)
-            .fromTo(macGroup.position, { y: -50 }, { duration: 1, y: -8 }, 0);
-
-        mainTl = gsap.timeline({ defaults: { ease: "none" } })
-            .to(laptopAppearTl, { duration: 1.5, progress: 1 }, 0)
-            .to(laptopOpeningTl, { duration: 1, progress: .34 }, .5)
-            .to(textureScrollTl, { duration: 1.5, progress: 1 }, 1.5)
-            .to(textureScrollTl, { duration: 1, progress: 0 })
-            .to(floatingTl, { duration: 1, timeScale: 1 }, 1);
-    }
-
-    function connectToWebcam() {
-        if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
-            const constraints = {video: {width: 1280, height: 720, facingMode: "user"}};
-            navigator.mediaDevices.getUserMedia(constraints).then(stream => {
-                videoEl.srcObject = stream;
-                videoEl.play();
-            }).catch(err => { console.error("Sin acceso a la webcam.", err); });
-        }
-    }
-
-    function createControls() {
-        const gui = new GUI();
-        gui.add(controlParams, "cameraOn").onChange(v => {
-            if (v) {
-                if (!videoEl.srcObject) connectToWebcam();
-                gsap.to(screenOnTl, { duration: .2, progress: 1 });
-                cameraOnTl.play();
-                contentScrollControl.hide();
-            } else {
-                cameraOnTl.reverse();
-                contentScrollControl.show();
+            onUpdate: () => { 
+                const el = document.getElementById("range-scroll");
+                if(el) el.value = textureScrollTl.progress(); 
             }
-            screenMaterial.map = v ? screenCameraTexture : screenImageTexture;
-        }).name("Prender Cámara");
-        
-        openingControl = gui.add(controlParams, "openingProgress", 0, 1).onChange(v => {
-            laptopOpeningTl.progress(v);
-        }).name("Abrir Laptop");
-        
-        contentScrollControl = gui.add(controlParams, "contentScrollProgress", 0, 1).onChange(v => {
-            textureScrollTl.progress(v);
-        }).name("Scrollear Mensaje");
+        })
+        .to(screenImageTexture.offset, { duration: 2, y: 0.38, ease: "power1.inOut" }); // <- Cambiamos de 0.35 a 0.65 para que baje más
+
+        // Animación de aparición inicial (la laptop ya aparece posessionada en escena pero cerrada)
+        laptopAppearTl = gsap.timeline({ paused: true })
+            .fromTo(macGroup.rotation, { x: 0.1 * Math.PI, y: -.1 * Math.PI }, { duration: 1, x: 0.05 * Math.PI, y: -.1 * Math.PI }, 0)
+            .fromTo(macGroup.position, { y: -8 }, { duration: 1, y: -8 }, 0);
+
+        // MAINELINE VACÍA: Ya no se ejecuta sola al cargar. Todo queda en manos de los controles.
+        mainTl = gsap.timeline({ paused: true });
     }
+
+ function createControls() {
+        const rangeOpening = document.getElementById("range-opening");
+        const rangeScroll = document.getElementById("range-scroll");
+        const bgMusic = document.getElementById("bg-music");
+        const welcomeScreen = document.getElementById("welcome-screen");
+        const startBtn = document.getElementById("start-btn");
+
+        // Al hacer clic en el botón inicial, se habilita el audio y desaparece la pantalla
+        startBtn.addEventListener("click", () => {
+            bgMusic.play().then(() => {
+                // Si la música arrancó bien, ocultamos la pantalla de bienvenida
+                welcomeScreen.style.opacity = "0";
+                setTimeout(() => welcomeScreen.style.display = "none", 500);
+            }).catch(err => {
+                console.log("Error al reproducir audio:", err);
+            });
+        });
+
+        // Sincronizar slider de apertura de la laptop
+        rangeOpening.addEventListener("input", (e) => {
+            const val = parseFloat(e.target.value);
+            laptopOpeningTl.progress(val);
+
+            // Por si acaso, si mueve el slider y la música sigue pausada, intentamos reproducirla
+            if (val > 0.02 && bgMusic.paused) {
+                bgMusic.play().catch(() => {});
+            }
+        });
+
+        // Sincronizar slider de scroll del mensaje
+        rangeScroll.addEventListener("input", (e) => {
+            const val = parseFloat(e.target.value);
+            textureScrollTl.progress(val);
+        });
+    }
+    // Y para asegurarnos de actualizar los sliders si alguna vez se mueven desde código:
+    // (Actualizamos las funciones de actualización para que muevan los inputs HTML)
+    // Buscá las declaraciones originales de las timelines y dejalas así:
+    /*
+    laptopOpeningTl = gsap.timeline({
+        paused: true,
+        onUpdate: () => { document.getElementById("range-opening").value = laptopOpeningTl.progress(); }
+    })...
+    
+    textureScrollTl = gsap.timeline({
+        paused: true,
+        onUpdate: () => { document.getElementById("range-scroll").value = textureScrollTl.progress(); }
+    })...
+    */
     </script>
+    <!-- Panel de controles flotante minimalista (Solo Apertura y Scroll) -->
+    <div class="custom-controls">
+        <div class="control-group">
+            <label>Arrastra para abrir</label>
+            <input type="range" id="range-opening" min="0" max="1" step="0.01" value="0">
+        </div>
+        <div class="control-group">
+            <label>Scrollear Mensaje</label>
+            <input type="range" id="range-scroll" min="0" max="1" step="0.01" value="0">
+        </div>
+        <div class="control-group">
+            <label>podes hacer zoom con los dedos</label>
+        </div>
+    </div>
 </body>
 </html>
