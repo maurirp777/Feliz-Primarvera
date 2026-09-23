@@ -139,7 +139,7 @@
         resizePetalsCanvas();
 
         // Poné acá los nombres de tus archivos PNG de flores reales
-        const flowerImageSources = ["flor 1.png", "flor 2.png", "flor 3.png"]; 
+        const flowerImageSources = ["flor 1.WebP", "flor 2.WebP", "flor 3.WebP"]; 
         const loadedFlowerImages = [];
         let imagesLoadedCount = 0;
 
@@ -290,7 +290,7 @@
 
         function drawCanvasContent() {
             const bgImg = new Image();
-            bgImg.src = "justin.png"; 
+            bgImg.src = "justin.WebP"; 
             
             bgImg.onload = () => {
                 const hRatio = canvasTex.width / bgImg.width;
